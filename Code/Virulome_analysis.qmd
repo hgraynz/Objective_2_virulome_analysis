@@ -29,10 +29,10 @@ library(performance)
 Loading in the gene matrix (for later), metadata and virulence genes. Lets start with looking at the metadata and how it relates to the virulence genes.
 
 ```{r Data_setup, results = 'hide'}
-# Load metadata
-metadata <- read.csv("metadata_Jan26.csv", header = TRUE)
+setwd("~/STEC_139/Objective_2_virulome_analysis")# Load metadata
+metadata <- read.csv("~/STEC_139/Objective_2_virulome_analysis/Data/metadata_Jan26.csv", header = TRUE)
 # Load virulence genes
-virulence_presence <- read.csv("virulence_genes_Jan26.csv", header = TRUE, stringsAsFactors = FALSE, check.names = FALSE)
+virulence_presence <- read.csv("~/STEC_139/Objective_2_virulome_analysis/Data/virulence_genes_Jan26.csv", header = TRUE, stringsAsFactors = FALSE, check.names = FALSE)
 
 ### Permanova ###
 # Make sure the first column is Isolate_ID
@@ -65,6 +65,9 @@ set.seed(310)
 perm_vir_margin <- adonis2(dist_matrix_virulence ~ Sample_site , data = metadata, permutations = 1000, by = "margin")
 
 perm_vir_margin
+
+permanova_table <- as.data.frame(perm_vir_margin)
+write.csv(permanova_table, file = "~/STEC_139/Objective_2_virulome_analysis/Tables/permanova_results_virulence.csv", row.names = TRUE)
 ```
 
 #### Sample_site
