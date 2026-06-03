@@ -4,14 +4,9 @@ format: html
 editor: visual
 ---
 
+Whole genome sequence data from 139 STEC O157 were included in the below analysis. This is based off Dr Sara Burgess's "AMR dairy calf project - modelling analysis". A gene presence absence matrix was generated using Roary (v.3.13.0), and the core and accessory genomes were extracted from the gene_presence_absence.csv, with data tied along the way based on what was needed for the functions.
 
-Whole genome sequence data from 139 STEC O157 were included in the below analysis. This is based off Dr Sara Burgess's "AMR dairy calf project - modelling analysis". A gene presence absence matrix was generated using Roary (v.3.13.0), and the core and accessory genomes were extracted from the gene_presence_absence.csv, with data tied along the way based on what was needed for the functions. 
-
-https://link.springer.com/article/10.1186/s12915-023-01562-w#Sec11 
-https://journals.asm.org/doi/10.1128/spectrum.00956-25
-https://link.springer.com/article/10.1007/s10096-023-04600-1#Sec2
-https://pmc.ncbi.nlm.nih.gov/articles/PMC12772303/#s2
-
+https://link.springer.com/article/10.1186/s12915-023-01562-w#Sec11 https://journals.asm.org/doi/10.1128/spectrum.00956-25 https://link.springer.com/article/10.1007/s10096-023-04600-1#Sec2 https://pmc.ncbi.nlm.nih.gov/articles/PMC12772303/#s2
 
 ```{r libraries, message = FALSE, warning = FALSE}
 # Load libraries
@@ -31,8 +26,7 @@ library(car)
 library(performance)
 ```
 
-Loading in the gene matrix (for later), metadata and virulence genes. 
-Lets start with looking at the metadata and how it relates to the virulence genes. 
+Loading in the gene matrix (for later), metadata and virulence genes. Lets start with looking at the metadata and how it relates to the virulence genes.
 
 ```{r Data_setup, results = 'hide'}
 # Load metadata
@@ -60,15 +54,10 @@ dist_matrix_virulence <- vegdist(virulence_binary, method = "jaccard", binary = 
 head(as.matrix(dist_matrix_virulence))
 ```
 
-Permanova is a multivariate test not a gene level association. It tells whether isolates share a metadata category (e.g. sample site) are more similar to each other in overall gene content than isolates in other categories. 
-Is the global gene-content signal? 
-Does not test for independence of each variable. Each factor is tested without accounting for the other. Adding an interaction allows dependence of the two variables on one another to be tested. If the interaction is significant the effect of one variable depends on the other. 
+Permanova is a multivariate test not a gene level association. It tells whether isolates share a metadata category (e.g. sample site) are more similar to each other in overall gene content than isolates in other categories. Is the global gene-content signal? Does not test for independence of each variable. Each factor is tested without accounting for the other. Adding an interaction allows dependence of the two variables on one another to be tested. If the interaction is significant the effect of one variable depends on the other.
 
-
-- This tests each variable while controlling for the other, code used for this is by= "margin"
-- Does site structure virulence gene content independently of Sample site?
-
-
+-   This tests each variable while controlling for the other, code used for this is by= "margin"
+-   Does site structure virulence gene content independently of Sample site?
 
 ```{r permanova}
 #Permanova of virulence genes 
@@ -79,23 +68,22 @@ perm_vir_margin
 ```
 
 #### Sample_site
-- Sample site explains 10% of the variation (look at the R2)
-- The effect is significant
-- There is independent site effect on virulence genes
 
+-   Sample site explains 10% of the variation (look at the R2)
+-   The effect is significant
+-   There is independent site effect on virulence genes
 
 #### This suggests:
 
-- Virulence genes track host / infection phenotype
-- Environmental origin?
-- Likely reflecting pathotype-specific gene content
+-   Virulence genes track host / infection phenotype
+-   Environmental origin?
+-   Likely reflecting pathotype-specific gene content
 
-So, is there any other factors that is influencing this? Farm? Calf? 
+So, is there any other factors that is influencing this? Farm? Calf?
 
+Do I want to do any nested models?
 
-Do I want to do any nested models? 
-
-``` {r PCoA_plots}
+```{r PCoA_plots}
 # PCoA
 pcoa_vir <- cmdscale(dist_matrix_virulence, k = 2, eig = TRUE)
 
@@ -177,12 +165,11 @@ ggplot(pcoa_df_plot, aes(x = as.factor(Sample_site), y = PC1, fill = as.factor(S
 
 ```
 
-
-PC1 explains most of the variation (~61%), so the horizontal spread dominates the differences.
+PC1 explains most of the variation (\~61%), so the horizontal spread dominates the differences.
 
 Lots of sample site overlap.
 
-SBI types ASY2c and SY2c are seperated out from the grouping showing that these are strong driversers in the virulence disstances. 
+SBI types ASY2c and SY2c are seperated out from the grouping showing that these are strong driversers in the virulence disstances.
 
 The PC1 (60.5%) on the x-axis indicates the proportion of variation in the virulence gene dataset explained by the first principal coordinate.
 
@@ -190,8 +177,7 @@ The PC2 (31.8%) on the y-axis explains another 31.8% of the variation.
 
 PC1 and PC2 explain 92.3% of the total variation. This means the PCoA plot is capturing most of the differences between isolates with these two dimensions.
 
-
-``` {r PC1_contributions}
+```{r PC1_contributions}
 # Remove genes with zero variance
 virulence_binary_var <- virulence_binary[, apply(virulence_binary, 2, sd) > 0]
 
@@ -249,35 +235,37 @@ head(gene_contrib_df_pc2, 10)
 ```
 
 #### How to interpret the numbers
-- Small values (close to 0) → gene contributes very little to PC1.
-- Sign (+ / -) → shows direction along PC1.
-- Positive correlation → isolates with this gene tend to be on the right side of PC1 in the PCoA plot.
-- Negative correlation → isolates with this gene tend to be on the left side of PC1.
+
+-   Small values (close to 0) → gene contributes very little to PC1.
+-   Sign (+ / -) → shows direction along PC1.
+-   Positive correlation → isolates with this gene tend to be on the right side of PC1 in the PCoA plot.
+-   Negative correlation → isolates with this gene tend to be on the left side of PC1.
 
 Examples
 
 ###### stx2c → 0.92
-- Strong positive correlation → isolates that have stx2c are more likely to be on the left of PC1.
-- This is the largest contributor to PC1, so it’s the main gene differentiating the isolates along that axis.
+
+-   Strong positive correlation → isolates that have stx2c are more likely to be on the left of PC1.
+-   This is the largest contributor to PC1, so it’s the main gene differentiating the isolates along that axis.
 
 ###### stx2a → -0.916
-- Strong negitive correlation → isolates with stx2a tend to shift to the left.
-- This is another large contributor to PC1, so it’s the main gene differentiating the isolates along that axis.
 
+-   Strong negitive correlation → isolates with stx2a tend to shift to the left.
+-   This is another large contributor to PC1, so it’s the main gene differentiating the isolates along that axis.
 
 ##### Overall takeaways
 
-- PC1 (explaining 60.5% of variation) is heavily driven by stx2c — its presence/absence defines most of the differences between the isolates along PC1.Stx2a is the same in its contributions. 
-- Other genes contribute, but much less.
-- Genes with correlations near 0 have minimal effect on the main axis.
+-   PC1 (explaining 60.5% of variation) is heavily driven by stx2c — its presence/absence defines most of the differences between the isolates along PC1.Stx2a is the same in its contributions.
+-   Other genes contribute, but much less.
+-   Genes with correlations near 0 have minimal effect on the main axis.
 
 #### Fisher's exact test
-More appropriate than chi-sq as chi-sq needs larger expected values. This is a gene by trait association test. Is the distribution of gene presence/absence different across the categories, the p-value tell us whether the observed distribution could occur by chance. This only considers one gene by one trait at a time. This is a univariate test that doesn't adjust for other metadata variables - each test is independent. There is the possibility to make a loop over all genes to pull out any significant ones to go into a glm or lmm. 
 
+More appropriate than chi-sq as chi-sq needs larger expected values. This is a gene by trait association test. Is the distribution of gene presence/absence different across the categories, the p-value tell us whether the observed distribution could occur by chance. This only considers one gene by one trait at a time. This is a univariate test that doesn't adjust for other metadata variables - each test is independent. There is the possibility to make a loop over all genes to pull out any significant ones to go into a glm or lmm.
 
 “Is the presence/absence of stx2a independent of Sample_site?”
 
-``` {r Fishers_setup}
+```{r Fishers_setup}
 tbl <-table(virulence_binary$stx2a, metadata$Sample_site)
 fisher.test(tbl)
 
@@ -300,13 +288,10 @@ fisher_result <- fisher.test(contingency_table, workspace = 2e8)
 #View the results
 print(fisher_result)
 ```
-p-value = 9.98e-10
-- This is extremely strong evidence against independence
-- The distribution of stx2a presence/absence differs by Sample_site
-- The association is not due to chance
 
+p-value = 9.98e-10 - This is extremely strong evidence against independence - The distribution of stx2a presence/absence differs by Sample_site - The association is not due to chance
 
-``` {r loop_for_all_genes}
+```{r loop_for_all_genes}
 gene_pvals <- sapply(colnames(virulence_binary), function(gene_name) {
   
   tbl <- table(virulence_binary[, gene_name], metadata$Sample_site)
@@ -345,20 +330,18 @@ candidate_genes <- fisher_results %>%
 #A gene-wise association screen between virulence genes and a phenotype
 ```
 
-“P-values from Fisher’s exact tests were adjusted for multiple testing using the Benjamini–Hochberg false discovery rate procedure. Genes were ranked by adjusted p-value (FDR), and those with FDR < 0.05 were considered significantly associated with sample site.”
+“P-values from Fisher’s exact tests were adjusted for multiple testing using the Benjamini–Hochberg false discovery rate procedure. Genes were ranked by adjusted p-value (FDR), and those with FDR \< 0.05 were considered significantly associated with sample site.”
 
+What about an NMDS analysis?
 
-What about an NMDS analysis? 
-
-``` {r NMDS_attempt, results = 'hide'}
+```{r NMDS_attempt, results = 'hide'}
 set.seed(31077)
 nmds <- metaMDS(dist_matrix_virulence)
 
 nmds$points
 ```
 
-
-``` {r NMDS_plots}
+```{r NMDS_plots}
 nmds_points <- nmds$points %>%
  as.data.frame() 
 
@@ -373,9 +356,9 @@ ggplot(merged_data, aes(x = MDS1, y = MDS2, color = Sample_site, shape = SBI)) +
   labs(x = "MDS1", y = "MDS2", color = "Sample site", shape = "SBI") 
 ```
 
-GLMR? Logit model? 
+GLMR? Logit model?
 
-``` {r glm_test, results = 'hide'}
+```{r glm_test, results = 'hide'}
 #virulence_presence
 #metadata
 # Load metadata
@@ -389,7 +372,7 @@ merged_data_glm <- inner_join(virulence_presence_ID, metadata, by = "Isolate_ID"
 colSums(is.na(merged_data_glm))
 ```
 
-``` {r glm_model}
+```{r glm_model}
 mod.int <- glmer(formula = stx2a ~ 1 + (1|Sample_site), family = binomial(logit),
                               data = merged_data_glm,
                               control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun=2e5)))
@@ -401,9 +384,9 @@ performance::icc(mod.int)
 
 72% of the variation in the outcome variation can be accounted for by the clustering structure of the data.
 
-Next I have built up this model step by step. Lets see if the assumptions of constant variance and normality (see the graphs below). 
+Next I have built up this model step by step. Lets see if the assumptions of constant variance and normality (see the graphs below).
 
-``` {r model_1}  
+```{r model_1}
 #dat$MilkingHerdSize_scale <- scale(dat$MilkingHerdSize)
 
 mod1 <- glmer(formula = stx2a ~ Farm_id + (1|Sample_site), family = binomial(logit),
@@ -414,26 +397,23 @@ summary(mod1)
 
 ```
 
-``` {r glm_plots}
+```{r glm_plots}
 plot(resid(mod1))
 qqnorm(resid(mod1))
 qqline(resid(mod1))
 ```
 
-
-
-
 ### Lets try this independent of the stx genes
 
-Genes that are significant for STEC are stx, eae and ehxA, therefore, these will be removed. 
+Genes that are significant for STEC are stx, eae and ehxA, therefore, these will be removed.
 
-``` {r removing_stx_genes, results = 'hide'}
+```{r removing_stx_genes, results = 'hide'}
 # Easiest to do it by hand
 virulence_no_STEC <- read.csv("~/STEC_139/Roary/virulence_genes_no_STEC_Jan26 .csv", stringsAsFactors=TRUE, header = T)
 
 ```
 
-``` {r, permanova_setup_no_STEC, results = 'hide'}
+```{r, permanova_setup_no_STEC, results = 'hide'}
 
 ### Permanova ###
 
@@ -454,8 +434,7 @@ head(as.matrix(dist_matrix_virulence_no_STEC))
 
 ```
 
-
-``` {r permanova_no_STEC} 
+```{r permanova_no_STEC}
 #Permanova of virulence genes excuding the important ones
 
 set.seed(312)
@@ -463,9 +442,9 @@ perm_vir_margin_no_STEC <- adonis2(dist_matrix_virulence_no_STEC ~ Sample_site, 
 
 perm_vir_margin_no_STEC
 
-``` 
+```
 
-``` {r PCoA_no_STEC}
+```{r PCoA_no_STEC}
 
 # PCoA
 pcoa_vir_no_STEC <- cmdscale(dist_matrix_virulence_no_STEC, k = 2, eig = TRUE)
@@ -497,7 +476,7 @@ ggplot(pcoa_df_no_STEC, aes(x = PC1, y = PC2, color = SBI)) +
 
 ```
 
-``` {r no_STEC_add_jitter} 
+```{r no_STEC_add_jitter}
 pcoa_df_no_STEC_jitter <- pcoa_df_no_STEC %>%
   mutate(
     PC1 = PC1 + runif(n(), -0.01, 0.01),
@@ -583,8 +562,7 @@ ggplot(pcoa_df_no_STEC, aes(x = Sample_site, y = PC1, fill = Sample_site)) +
 
 ```
 
-
-``` {r so_what_genes}
+```{r so_what_genes}
 # Remove genes with zero variance
 virulence_binary_var_no_STEC <- virulence_binary_no_STEC[, apply(virulence_binary_no_STEC, 2, sd) > 0]
 
@@ -603,8 +581,7 @@ head(gene_contrib_df_no_STEC, 10)
 
 ```
 
-
-``` {r SBI_instead}
+```{r SBI_instead}
 
 # Add small jitter to avoid overplotting
 pcoa_df_no_STEC_jitter <- pcoa_df_no_STEC %>%
@@ -686,4 +663,3 @@ ggplot(pcoa_df_no_STEC_plot, aes(x = as.factor(SBI), y = PC1, fill = as.factor(S
   )
 
 ```
-
