@@ -35,8 +35,6 @@ Loading in the gene matrix (for later), metadata and virulence genes.
 Lets start with looking at the metadata and how it relates to the virulence genes. 
 
 ```{r Data_setup, results = 'hide'}
-# Load Roary matrix
-gene_matrix <- read.csv("gene_presence_absence.csv", row.names = 1)   # keep isolate names untouched
 # Load metadata
 metadata <- read.csv("metadata_Jan26.csv", header = TRUE)
 # Load virulence genes
