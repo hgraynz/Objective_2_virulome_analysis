@@ -69,6 +69,11 @@ perm_vir_margin
 permanova_table <- as.data.frame(perm_vir_margin)
 write.csv(permanova_table, file = "~/STEC_139/Objective_2_virulome_analysis/Tables/permanova_results_virulence.csv", row.names = TRUE)
 ```
+|             | Df  | SumOfSqs | R2       | F        | Pr(>F)   |
+|-------------|-----|----------|----------|----------|----------|
+| Sample_site | 4   | 0.007054 | 0.178836 | 7.295741 | 0.000999 |
+| Residual    | 134 | 0.032392 | 0.821164 |          | NA       |
+| Total       | 138 | 0.039446 | 1        |          | NA       |
 
 #### Sample_site
 
@@ -108,8 +113,6 @@ pc1_var <- round(var_explained[1] * 100, 1)
 pc2_var <- round(var_explained[2] * 100, 1)
 
 
-
-# Plot
 ggplot(pcoa_df, aes(x = PC1, y = PC2, color = as.factor(Farm_id))) +
   geom_point(size = 4) +
   xlab(paste0("PC1 (", pc1_var, "%)")) +
@@ -119,6 +122,61 @@ ggplot(pcoa_df, aes(x = PC1, y = PC2, color = as.factor(Farm_id))) +
     text = element_text(size = 14),
     legend.position = "right"
   )
+
+
+# Plot_farm
+ggplot(pcoa_df, aes(x = PC1, y = PC2, color = as.factor(Farm_id))) +
+  geom_jitter(width = 0.001, height = 0.001, size = 3, alpha = 0.8) +
+  stat_ellipse(aes(fill = Farm_id), geom = "polygon", alpha = 0.2) +
+  theme_minimal() +
+  labs(
+    title = "Virulome PCoA",
+    x = paste0("PC1 (", pc1_var, "%)"),
+    y = paste0("PC2 (", pc2_var, "%)")
+  )
+
+ggplot(pcoa_df, aes(x = PC1, y = PC2, color = Sample_site)) +
+  geom_jitter(width = 0.01, height = 0.01, size = 3, alpha = 0.8) +
+  stat_ellipse(aes(fill = Sample_site), alpha = 0.2, geom = "polygon", color = NA) +
+  labs(
+    title = "PCoA of Virulence Genes",
+    x = paste0("PC1 (", round(var_explained[1]*100,1), "%)"),
+    y = paste0("PC2 (", round(var_explained[2]*100,1), "%)")
+  ) +
+  theme_minimal() +
+  theme(
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10)
+  )
+
+ggplot(pcoa_df, aes(x = PC1, y = PC2, color = SBI)) +
+  geom_jitter(width = 0.01, height = 0.01, size = 3, alpha = 0.8) +
+  stat_ellipse(aes(fill = SBI), alpha = 0.2, geom = "polygon", color = NA) +
+  labs(
+    title = "PCoA of Virulence Genes",
+    x = paste0("PC1 (", round(var_explained[1]*100,1), "%)"),
+    y = paste0("PC2 (", round(var_explained[2]*100,1), "%)")
+  ) +
+  theme_minimal() +
+  theme(
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10)
+  )
+
+ggplot(pcoa_df, aes(x = PC1, y = PC2, color = Stx_gene)) +
+  geom_jitter(width = 0.01, height = 0.01, size = 3, alpha = 0.8) +
+  stat_ellipse(aes(fill = Stx_gene), alpha = 0.2, geom = "polygon", color = NA) +
+  labs(
+    title = "PCoA of Virulence Genes",
+    x = paste0("PC1 (", round(var_explained[1]*100,1), "%)"),
+    y = paste0("PC2 (", round(var_explained[2]*100,1), "%)")
+  ) +
+  theme_minimal() +
+  theme(
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10)
+  )
+
 
 
 # Add small jitter to avoid overplotting
@@ -149,6 +207,8 @@ ggplot(pcoa_df_plot, aes(x = PC1, y = PC2, color = Sample_site, shape = SBI)) +
     legend.title = element_text(size = 12),
     legend.text = element_text(size = 10)
   )
+
+
 
 ggplot(pcoa_df_plot, aes(x = as.factor(Sample_site), y = PC1, fill = as.factor(Sample_site))) +
   geom_violin(trim = FALSE, alpha = 0.8) +
