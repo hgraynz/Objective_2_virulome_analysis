@@ -419,53 +419,6 @@ ggplot(merged_data, aes(x = MDS1, y = MDS2, color = Sample_site, shape = SBI)) +
   labs(x = "MDS1", y = "MDS2", color = "Sample site", shape = "SBI") 
 ```
 
-GLMR? Logit model?
-
-```{r glm_test, results = 'hide'}
-#virulence_presence
-#metadata
-# Load metadata
-metadata <- read.csv("metadata_Jan26.csv", header = TRUE)
-# Load virulence genes
-virulence_presence_ID <- read.csv("virulence_genes_Jan26.csv", header = TRUE, stringsAsFactors = FALSE, check.names = FALSE)
-# Perform inner join
-merged_data_glm <- inner_join(virulence_presence_ID, metadata, by = "Isolate_ID")
-
-#Checking for missing data in any of the variables of interest
-colSums(is.na(merged_data_glm))
-```
-
-```{r glm_model}
-mod.int <- glmer(formula = stx2a ~ 1 + (1|Sample_site), family = binomial(logit),
-                              data = merged_data_glm,
-                              control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun=2e5)))
-summary(mod.int)
-
-#Calculating the intra-class correlation of the intercept-only model
-performance::icc(mod.int)
-```
-
-72% of the variation in the outcome variation can be accounted for by the clustering structure of the data.
-
-Next I have built up this model step by step. Lets see if the assumptions of constant variance and normality (see the graphs below).
-
-```{r model_1}
-#dat$MilkingHerdSize_scale <- scale(dat$MilkingHerdSize)
-
-mod1 <- glmer(formula = stx2a ~ Farm_id + (1|Sample_site), family = binomial(logit),
-                              data = merged_data_glm,
-                              control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun=2e5)))
-
-summary(mod1)
-
-```
-
-```{r glm_plots}
-plot(resid(mod1))
-qqnorm(resid(mod1))
-qqline(resid(mod1))
-```
-
 ### Lets try this independent of the stx genes
 
 Genes that are significant for STEC are stx, eae and ehxA, therefore, these will be removed.
