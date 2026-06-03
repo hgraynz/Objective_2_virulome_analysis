@@ -1,0 +1,691 @@
+---
+title: "Virulome_analysis"
+format: html
+editor: visual
+---
+
+
+Whole genome sequence data from 139 STEC O157 were included in the below analysis. This is based off Dr Sara Burgess's "AMR dairy calf project - modelling analysis". A gene presence absence matrix was generated using Roary (v.3.13.0), and the core and accessory genomes were extracted from the gene_presence_absence.csv, with data tied along the way based on what was needed for the functions. 
+
+https://link.springer.com/article/10.1186/s12915-023-01562-w#Sec11 
+https://journals.asm.org/doi/10.1128/spectrum.00956-25
+https://link.springer.com/article/10.1007/s10096-023-04600-1#Sec2
+https://pmc.ncbi.nlm.nih.gov/articles/PMC12772303/#s2
+
+
+```{r libraries, message = FALSE, warning = FALSE}
+# Load libraries
+library(vegan)
+library(BiocManager)
+library(dplyr)
+library(tidyr)
+library(gtools)
+library(effects)
+library(sjstats)
+library(lme4)
+library(dbstats)
+library(ggplot2)
+library(glue)
+library(randomForest)
+library(car)
+library(performance)
+```
+
+Loading in the gene matrix (for later), metadata and virulence genes. 
+Lets start with looking at the metadata and how it relates to the virulence genes. 
+
+```{r Data_setup, results = 'hide'}
+# Load Roary matrix
+gene_matrix <- read.csv("gene_presence_absence.csv", row.names = 1)   # keep isolate names untouched
+# Load metadata
+metadata <- read.csv("metadata_Jan26.csv", header = TRUE)
+# Load virulence genes
+virulence_presence <- read.csv("virulence_genes_Jan26.csv", header = TRUE, stringsAsFactors = FALSE, check.names = FALSE)
+
+### Permanova ###
+# Make sure the first column is Isolate_ID
+head(virulence_presence)
+# Column 1 should be Isolate_ID, columns 2+ are genes
+
+# Set rownames as isolate IDs
+rownames(virulence_presence) <- virulence_presence$Isolate_ID
+virulence_presence$Isolate_ID <- NULL
+
+# Convert to numeric (0/1) if needed
+virulence_binary <- virulence_presence
+virulence_binary[] <- lapply(virulence_binary, function(x) as.numeric(x > 0))
+
+# Compute distance between isolates
+dist_matrix_virulence <- vegdist(virulence_binary, method = "jaccard", binary = TRUE)
+
+# Confirm rownames
+head(as.matrix(dist_matrix_virulence))
+```
+
+Permanova is a multivariate test not a gene level association. It tells whether isolates share a metadata category (e.g. sample site) are more similar to each other in overall gene content than isolates in other categories. 
+Is the global gene-content signal? 
+Does not test for independence of each variable. Each factor is tested without accounting for the other. Adding an interaction allows dependence of the two variables on one another to be tested. If the interaction is significant the effect of one variable depends on the other. 
+
+
+- This tests each variable while controlling for the other, code used for this is by= "margin"
+- Does site structure virulence gene content independently of Sample site?
+
+
+
+```{r permanova}
+#Permanova of virulence genes 
+set.seed(310)
+perm_vir_margin <- adonis2(dist_matrix_virulence ~ Sample_site , data = metadata, permutations = 1000, by = "margin")
+
+perm_vir_margin
+```
+
+#### Sample_site
+- Sample site explains 10% of the variation (look at the R2)
+- The effect is significant
+- There is independent site effect on virulence genes
+
+
+#### This suggests:
+
+- Virulence genes track host / infection phenotype
+- Environmental origin?
+- Likely reflecting pathotype-specific gene content
+
+So, is there any other factors that is influencing this? Farm? Calf? 
+
+
+Do I want to do any nested models? 
+
+``` {r PCoA_plots}
+# PCoA
+pcoa_vir <- cmdscale(dist_matrix_virulence, k = 2, eig = TRUE)
+
+# Create data frame for plotting
+pcoa_df <- data.frame(
+  Isolate_ID = rownames(as.matrix(dist_matrix_virulence)),
+  PC1 = pcoa_vir$points[,1],
+  PC2 = pcoa_vir$points[,2]
+)
+
+# Merge metadata (make sure column names match)
+pcoa_df <- pcoa_df %>%
+  left_join(metadata, by = "Isolate_ID")
+
+# Percentage of variance explained
+eig_vals <- pcoa_vir$eig
+var_explained <- eig_vals / sum(eig_vals)
+pc1_var <- round(var_explained[1] * 100, 1)
+pc2_var <- round(var_explained[2] * 100, 1)
+
+
+
+# Plot
+ggplot(pcoa_df, aes(x = PC1, y = PC2, color = as.factor(Farm_id))) +
+  geom_point(size = 4) +
+  xlab(paste0("PC1 (", pc1_var, "%)")) +
+  ylab(paste0("PC2 (", pc2_var, "%)")) +
+  theme_bw() +
+  theme(
+    text = element_text(size = 14),
+    legend.position = "right"
+  )
+
+
+# Add small jitter to avoid overplotting
+pcoa_df_jitter <- pcoa_df %>%
+  mutate(PC1 = PC1 + runif(n(), -0.005, 0.005),
+         PC2 = PC2 + runif(n(), -0.005, 0.005))
+
+# Count points per Sample_site to avoid groups with <3 points
+sample_counts <- pcoa_df_jitter %>%
+  group_by(Sample_site) %>%
+  summarise(n = n())
+
+# Keep only Sample_sites with >=3 points for ellipses
+pcoa_df_plot <- pcoa_df_jitter %>%
+  filter(Sample_site %in% sample_counts$Sample_site[sample_counts$n >= 3])
+
+# PCoA plot with ellipses
+ggplot(pcoa_df_plot, aes(x = PC1, y = PC2, color = Sample_site, shape = SBI)) +
+  geom_point(size = 3, alpha = 0.8) +
+  stat_ellipse(aes(fill = Sample_site), alpha = 0.2, geom = "polygon", color = NA) +
+  labs(
+    title = "PCoA of Virulence Genes",
+    x = paste0("PC1 (", round(var_explained[1]*100,1), "%)"),
+    y = paste0("PC2 (", round(var_explained[2]*100,1), "%)")
+  ) +
+  theme_minimal() +
+  theme(
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10)
+  )
+
+ggplot(pcoa_df_plot, aes(x = as.factor(Sample_site), y = PC1, fill = as.factor(Sample_site))) +
+  geom_violin(trim = FALSE, alpha = 0.8) +
+  geom_jitter(aes(color = as.factor(Sample_site)), width = 0.2, alpha = 0.6, size = 2) +
+  labs(
+    title = "Distribution of PC1 by Sample_site",
+    x = "Sample_site",
+    y = paste0("PC1 (", round(var_explained[1] * 100, 1), "%)")
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title  = element_text(size = 12),
+    plot.title  = element_text(size = 14, face = "bold"),
+    legend.position = "none"
+  )
+
+```
+
+
+PC1 explains most of the variation (~61%), so the horizontal spread dominates the differences.
+
+Lots of sample site overlap.
+
+SBI types ASY2c and SY2c are seperated out from the grouping showing that these are strong driversers in the virulence disstances. 
+
+The PC1 (60.5%) on the x-axis indicates the proportion of variation in the virulence gene dataset explained by the first principal coordinate.
+
+The PC2 (31.8%) on the y-axis explains another 31.8% of the variation.
+
+PC1 and PC2 explain 92.3% of the total variation. This means the PCoA plot is capturing most of the differences between isolates with these two dimensions.
+
+
+``` {r PC1_contributions}
+# Remove genes with zero variance
+virulence_binary_var <- virulence_binary[, apply(virulence_binary, 2, sd) > 0]
+
+# Compute correlation with PC1
+gene_contrib <- apply(virulence_binary_var, 2, function(x) cor(x, pcoa_vir$points[,1]))
+
+# Make a data frame and sort by absolute contribution
+gene_contrib_df <- data.frame(
+  Gene = names(gene_contrib),
+  Correlation_with_PC1 = gene_contrib
+) %>%
+  arrange(desc(abs(Correlation_with_PC1)))
+
+# View top 10 contributors
+head(gene_contrib_df, 10)
+
+# Take top 15 genes by absolute contribution
+top_genes <- gene_contrib_df %>%
+  slice_max(order_by = abs(Correlation_with_PC1), n = 15) %>%
+  # Reorder factor levels based on correlation (for plotting left/right)
+  arrange(Correlation_with_PC1) %>%
+  mutate(Gene = factor(Gene, levels = Gene))
+
+# Plot
+ggplot(top_genes, aes(x = Gene, y = Correlation_with_PC1, fill = Correlation_with_PC1 > 0)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("red", "blue"), labels = c("Left PC1 (neg)", "Right PC1 (pos)")) +
+  coord_flip() +  # horizontal bars
+  ylab("Correlation with PC1") +
+  xlab("") +
+  ggtitle("Top 15 Virulence Genes Driving PC1 (Direction shown)") +
+  theme_bw() +
+  theme(
+    text = element_text(size = 14),
+    legend.title = element_blank(),
+    legend.position = "top"
+  )
+
+# Remove genes with zero variance
+virulence_binary_var <- virulence_binary[, apply(virulence_binary, 2, sd) > 0]
+
+# Compute correlation with PC1
+gene_contrib_pc2 <- apply(virulence_binary_var, 2, function(x) cor(x, pcoa_vir$points[,2]))
+
+# Make a data frame and sort by absolute contribution
+gene_contrib_df_pc2 <- data.frame(
+  Gene = names(gene_contrib_pc2),
+  Correlation_with_PC2 = gene_contrib_pc2
+) %>%
+  arrange(desc(abs(Correlation_with_PC2)))
+
+# View top 10 contributors
+head(gene_contrib_df_pc2, 10)
+
+```
+
+#### How to interpret the numbers
+- Small values (close to 0) → gene contributes very little to PC1.
+- Sign (+ / -) → shows direction along PC1.
+- Positive correlation → isolates with this gene tend to be on the right side of PC1 in the PCoA plot.
+- Negative correlation → isolates with this gene tend to be on the left side of PC1.
+
+Examples
+
+###### stx2c → 0.92
+- Strong positive correlation → isolates that have stx2c are more likely to be on the left of PC1.
+- This is the largest contributor to PC1, so it’s the main gene differentiating the isolates along that axis.
+
+###### stx2a → -0.916
+- Strong negitive correlation → isolates with stx2a tend to shift to the left.
+- This is another large contributor to PC1, so it’s the main gene differentiating the isolates along that axis.
+
+
+##### Overall takeaways
+
+- PC1 (explaining 60.5% of variation) is heavily driven by stx2c — its presence/absence defines most of the differences between the isolates along PC1.Stx2a is the same in its contributions. 
+- Other genes contribute, but much less.
+- Genes with correlations near 0 have minimal effect on the main axis.
+
+#### Fisher's exact test
+More appropriate than chi-sq as chi-sq needs larger expected values. This is a gene by trait association test. Is the distribution of gene presence/absence different across the categories, the p-value tell us whether the observed distribution could occur by chance. This only considers one gene by one trait at a time. This is a univariate test that doesn't adjust for other metadata variables - each test is independent. There is the possibility to make a loop over all genes to pull out any significant ones to go into a glm or lmm. 
+
+
+“Is the presence/absence of stx2a independent of Sample_site?”
+
+``` {r Fishers_setup}
+tbl <-table(virulence_binary$stx2a, metadata$Sample_site)
+fisher.test(tbl)
+
+set.seed(320)
+perm_vir_farm <- adonis2(dist_matrix_virulence ~ Sample_site , data = metadata, strata = metadata$FarmID)
+
+perm_vir_farm
+
+metadata$FarmID<-metadata$Farm_id
+metadata$FarmID<-factor(metadata$FarmID, levels = c(25, 84, 130, 19, 30), labels = c("Farm_25", "Farm_84", "Farm_130", "Farm_19", "Farm_30"))
+
+# Create the contingency table
+contingency_table <- table(metadata$FarmID, metadata$Sample_site)
+# View the table
+print(contingency_table)
+
+# Perform the Fisher's exact test
+fisher_result <- fisher.test(contingency_table, workspace = 2e8)
+
+#View the results
+print(fisher_result)
+```
+p-value = 9.98e-10
+- This is extremely strong evidence against independence
+- The distribution of stx2a presence/absence differs by Sample_site
+- The association is not due to chance
+
+
+``` {r loop_for_all_genes}
+gene_pvals <- sapply(colnames(virulence_binary), function(gene_name) {
+  
+  tbl <- table(virulence_binary[, gene_name], metadata$Sample_site)
+  
+  # Fisher requires at least 2 rows AND 2 columns
+  if (nrow(tbl) < 2 || ncol(tbl) < 2) {
+    return(NA)
+  }
+  
+  fisher.test(tbl)$p.value
+})
+
+
+fisher_results <- data.frame(
+  Gene = colnames(virulence_binary),
+  P_value = gene_pvals
+)
+
+# Remove genes that could not be tested
+fisher_results <- fisher_results[!is.na(fisher_results$P_value), ]
+
+# Multiple testing correction
+fisher_results$FDR <- p.adjust(fisher_results$P_value, method = "BH")
+
+
+sig_genes <- fisher_results %>%
+  dplyr::filter(FDR < 0.05) %>%
+  dplyr::arrange(FDR)
+
+sig_genes$Gene
+
+candidate_genes <- fisher_results %>%
+  dplyr::filter(P_value < 0.05) %>%
+  dplyr::arrange(P_value)
+
+#A gene-wise association screen between virulence genes and a phenotype
+```
+
+“P-values from Fisher’s exact tests were adjusted for multiple testing using the Benjamini–Hochberg false discovery rate procedure. Genes were ranked by adjusted p-value (FDR), and those with FDR < 0.05 were considered significantly associated with sample site.”
+
+
+What about an NMDS analysis? 
+
+``` {r NMDS_attempt, results = 'hide'}
+set.seed(31077)
+nmds <- metaMDS(dist_matrix_virulence)
+
+nmds$points
+```
+
+
+``` {r NMDS_plots}
+nmds_points <- nmds$points %>%
+ as.data.frame() 
+
+nmds_points$Isolate_ID <- rownames(nmds_points)
+
+# Perform inner join
+merged_data <- inner_join(nmds_points, metadata, by = "Isolate_ID")
+
+
+ggplot(merged_data, aes(x = MDS1, y = MDS2, color = Sample_site, shape = SBI)) +
+  geom_point(size = 3, alpha=0.25) +  
+  labs(x = "MDS1", y = "MDS2", color = "Sample site", shape = "SBI") 
+```
+
+GLMR? Logit model? 
+
+``` {r glm_test, results = 'hide'}
+#virulence_presence
+#metadata
+# Load metadata
+metadata <- read.csv("metadata_Jan26.csv", header = TRUE)
+# Load virulence genes
+virulence_presence_ID <- read.csv("virulence_genes_Jan26.csv", header = TRUE, stringsAsFactors = FALSE, check.names = FALSE)
+# Perform inner join
+merged_data_glm <- inner_join(virulence_presence_ID, metadata, by = "Isolate_ID")
+
+#Checking for missing data in any of the variables of interest
+colSums(is.na(merged_data_glm))
+```
+
+``` {r glm_model}
+mod.int <- glmer(formula = stx2a ~ 1 + (1|Sample_site), family = binomial(logit),
+                              data = merged_data_glm,
+                              control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun=2e5)))
+summary(mod.int)
+
+#Calculating the intra-class correlation of the intercept-only model
+performance::icc(mod.int)
+```
+
+72% of the variation in the outcome variation can be accounted for by the clustering structure of the data.
+
+Next I have built up this model step by step. Lets see if the assumptions of constant variance and normality (see the graphs below). 
+
+``` {r model_1}  
+#dat$MilkingHerdSize_scale <- scale(dat$MilkingHerdSize)
+
+mod1 <- glmer(formula = stx2a ~ Farm_id + (1|Sample_site), family = binomial(logit),
+                              data = merged_data_glm,
+                              control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun=2e5)))
+
+summary(mod1)
+
+```
+
+``` {r glm_plots}
+plot(resid(mod1))
+qqnorm(resid(mod1))
+qqline(resid(mod1))
+```
+
+
+
+
+### Lets try this independent of the stx genes
+
+Genes that are significant for STEC are stx, eae and ehxA, therefore, these will be removed. 
+
+``` {r removing_stx_genes, results = 'hide'}
+# Easiest to do it by hand
+virulence_no_STEC <- read.csv("~/STEC_139/Roary/virulence_genes_no_STEC_Jan26 .csv", stringsAsFactors=TRUE, header = T)
+
+```
+
+``` {r, permanova_setup_no_STEC, results = 'hide'}
+
+### Permanova ###
+
+# Set rownames as isolate IDs
+rownames(virulence_no_STEC) <- virulence_no_STEC$Isolate_ID
+virulence_no_STEC$Isolate_ID <- NULL
+
+# Convert to numeric (0/1) if needed
+virulence_binary_no_STEC <- virulence_no_STEC
+virulence_binary_no_STEC[] <- lapply(virulence_binary_no_STEC, function(x) as.numeric(x > 0))
+
+# Step 5: Compute distance between isolates
+dist_matrix_virulence_no_STEC <- vegdist(virulence_binary_no_STEC, method = "jaccard", binary = TRUE)
+
+# Confirm rownames
+head(as.matrix(dist_matrix_virulence_no_STEC))
+
+
+```
+
+
+``` {r permanova_no_STEC} 
+#Permanova of virulence genes excuding the important ones
+
+set.seed(312)
+perm_vir_margin_no_STEC <- adonis2(dist_matrix_virulence_no_STEC ~ Sample_site, data = metadata, permutations = 1000, by = "margin")
+
+perm_vir_margin_no_STEC
+
+``` 
+
+``` {r PCoA_no_STEC}
+
+# PCoA
+pcoa_vir_no_STEC <- cmdscale(dist_matrix_virulence_no_STEC, k = 2, eig = TRUE)
+
+# Create data frame for plotting
+pcoa_df_no_STEC <- data.frame(
+  Isolate_ID = rownames(as.matrix(dist_matrix_virulence_no_STEC)),
+  PC1 = pcoa_vir_no_STEC$points[,1],
+  PC2 = pcoa_vir_no_STEC$points[,2]
+)
+
+# Merge metadata (make sure column names match)
+pcoa_df_no_STEC <- pcoa_df_no_STEC %>%
+  left_join(metadata, by = "Isolate_ID")
+
+# Percentage of variance explained
+eig_vals_no_STEC <- pcoa_vir_no_STEC$eig
+var_explained_no_STEC <- eig_vals_no_STEC / sum(eig_vals_no_STEC)
+pc1_var_no_STEC <- round(var_explained_no_STEC[1] * 100, 1)
+pc2_var_no_STEC <- round(var_explained_no_STEC[2] * 100, 1)
+
+# Plot
+ggplot(pcoa_df_no_STEC, aes(x = PC1, y = PC2, color = SBI)) + 
+  geom_point(size = 4) + 
+  xlab(paste0("PC1 (", pc1_var_no_STEC, "%)")) + 
+  ylab(paste0("PC2 (", pc2_var_no_STEC, "%)")) + 
+  theme_bw() + 
+  theme( text = element_text(size = 14), legend.position = "right" )
+
+```
+
+``` {r no_STEC_add_jitter} 
+pcoa_df_no_STEC_jitter <- pcoa_df_no_STEC %>%
+  mutate(
+    PC1 = PC1 + runif(n(), -0.01, 0.01),
+    PC2 = PC2 + runif(n(), -0.01, 0.01)
+  )
+
+# Count points per Sample_site to avoid groups with <3 points
+sample_counts_no_STEC <- pcoa_df_no_STEC_jitter %>%
+  group_by(Sample_site) %>%
+  summarise(n = n())
+
+# Keep only Sample_sites with >=3 points for ellipses
+pcoa_df_no_STEC_plot <- pcoa_df_no_STEC_jitter %>%
+  filter(Sample_site %in% sample_counts_no_STEC$Sample_site[sample_counts_no_STEC$n >= 3])
+
+# PCoA plot with ellipses
+ggplot(pcoa_df_no_STEC_plot, aes(x = PC1, y = PC2, color = Sample_site)) +
+  geom_point(size = 3, alpha = 0.8) +
+  stat_ellipse(aes(fill = Sample_site), alpha = 0.2, geom = "polygon", color = NA) +
+  labs(
+    title = "PCoA of Virulence Genes",
+    x = paste0("PC1 (", round(var_explained_no_STEC[1]*100,1), "%)"),
+    y = paste0("PC2 (", round(var_explained_no_STEC[2]*100,1), "%)")
+  ) +
+  theme_minimal() +
+  theme(
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10)
+  )
+
+# Use the non-jittered data for ellipses
+ellipse_df <- pcoa_df_no_STEC_plot
+
+ggplot() +
+  stat_ellipse(
+    data = ellipse_df,
+    aes(
+      x = PC1,
+      y = PC2,
+      fill = Sample_site
+    ),
+    geom = "polygon",
+    alpha = 0.2,
+    color = NA
+  ) +
+  geom_point(
+    data = ellipse_df,
+    aes(
+      x = PC1,
+      y = PC2,
+      color = Sample_site
+    ),
+    size = 3,
+    alpha = 0.8,
+    position = position_jitter(width = 0.01, height = 0.01)
+  ) +
+  labs(
+    title = "PCoA of Virulence Genes",
+    x = paste0("PC1 (", round(var_explained_no_STEC[1] * 100, 1), "%)"),
+    y = paste0("PC2 (", round(var_explained_no_STEC[2] * 100, 1), "%)")
+  ) +
+  theme_minimal() +
+  theme(
+    legend.title = element_text(size = 12),
+    legend.text  = element_text(size = 10)
+  )
+
+ggplot(pcoa_df_no_STEC, aes(x = Sample_site, y = PC1, fill = Sample_site)) +
+  geom_violin(trim = FALSE, alpha = 0.8) +
+  geom_jitter(aes(color = Sample_site), width = 0.2, alpha = 0.6, size = 2) +
+  labs(
+    title = "Distribution of PC1 by Sample Site",
+    x = "Sample site",
+    y = paste0("PC1 (", round(var_explained_no_STEC[1] * 100, 1), "%)")
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title = element_text(size = 12),
+    plot.title = element_text(size = 14, face = "bold"),
+    legend.position = "none"
+  )
+
+```
+
+
+``` {r so_what_genes}
+# Remove genes with zero variance
+virulence_binary_var_no_STEC <- virulence_binary_no_STEC[, apply(virulence_binary_no_STEC, 2, sd) > 0]
+
+# Compute correlation with PC1
+gene_contrib_no_STEC <- apply(virulence_binary_var_no_STEC, 2, function(x) cor(x, pcoa_vir_no_STEC$points[,1]))
+
+# Make a data frame and sort by absolute contribution
+gene_contrib_df_no_STEC <- data.frame(
+  Gene = names(gene_contrib_no_STEC),
+  Correlation_with_PC1 = gene_contrib_no_STEC
+) %>%
+  arrange(desc(abs(Correlation_with_PC1)))
+
+# View top 10 contributors
+head(gene_contrib_df_no_STEC, 10)
+
+```
+
+
+``` {r SBI_instead}
+
+# Add small jitter to avoid overplotting
+pcoa_df_no_STEC_jitter <- pcoa_df_no_STEC %>%
+  mutate(
+    PC1 = PC1 + runif(n(), -0.001, 0.001),
+    PC2 = PC2 + runif(n(), -0.001, 0.001)
+  )
+
+# Count points per SBI to avoid groups with <3 points
+sbi_counts_no_STEC <- pcoa_df_no_STEC_jitter %>%
+  group_by(SBI) %>%
+  summarise(n = n(), .groups = "drop")
+
+# Keep only SBI groups with >=3 points for ellipses
+pcoa_df_no_STEC_plot <- pcoa_df_no_STEC_jitter %>%
+  filter(SBI %in% sbi_counts_no_STEC$SBI[sbi_counts_no_STEC$n >= 3])
+
+# PCoA plot with ellipses
+ggplot(
+  pcoa_df_no_STEC_plot,
+  aes(x = PC1, y = PC2, color = as.factor(SBI))
+) +
+  geom_point(size = 3, alpha = 0.8) +
+  stat_ellipse(
+    aes(fill = as.factor(SBI)),
+    alpha = 0.2,
+    geom = "polygon",
+    color = NA
+  ) +
+  labs(
+    title = "PCoA of Virulence Genes",
+    x = paste0("PC1 (", round(var_explained_no_STEC[1] * 100, 1), "%)"),
+    y = paste0("PC2 (", round(var_explained_no_STEC[2] * 100, 1), "%)"),
+    color = "SBI",
+    fill = "SBI"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.title = element_text(size = 12),
+    legend.text  = element_text(size = 10)
+  )
+
+
+# Data for ellipses (no jitter)
+ellipse_df <- pcoa_df_no_STEC_plot
+
+# Plot
+ggplot() +
+  stat_ellipse(
+    data = ellipse_df,
+    aes(PC1, PC2, fill = as.factor(SBI)),
+    geom = "polygon",
+    alpha = 0.2,
+    color = NA
+  ) +
+  geom_point(
+    data = ellipse_df,
+    aes(PC1, PC2, color = as.factor(SBI)),
+    size = 3,
+    alpha = 0.8,
+    position = position_jitter(width = 0.01, height = 0.01)
+  ) +
+  theme_minimal()
+
+ggplot(pcoa_df_no_STEC_plot, aes(x = as.factor(SBI), y = PC1, fill = as.factor(SBI))) +
+  geom_violin(trim = FALSE, alpha = 0.8) +
+  geom_jitter(aes(color = as.factor(SBI)), width = 0.2, alpha = 0.6, size = 2) +
+  labs(
+    title = "Distribution of PC1 by SBI",
+    x = "SBI",
+    y = paste0("PC1 (", round(var_explained_no_STEC[1] * 100, 1), "%)")
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title  = element_text(size = 12),
+    plot.title  = element_text(size = 14, face = "bold"),
+    legend.position = "none"
+  )
+
+```
+
