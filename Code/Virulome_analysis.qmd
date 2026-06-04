@@ -200,9 +200,9 @@ SBI_colours <- c(
   "SY2c"  = "#FFBB78"
 )
 
-ggplot(pcoa_df, aes(x = PC1, y = PC2, color = SBI)) +
+P_3_vir<-ggplot(pcoa_df, aes(x = PC1, y = PC2, color = SBI)) +
   geom_jitter(width = 0.01, height = 0.01, size = 3, alpha = 0.8) +
-  stat_ellipse(aes(fill = SBI), geom = "polygon", alpha = 0.2, type = "norm") +
+  #stat_ellipse(aes(fill = SBI), geom = "polygon", alpha = 0.2, type = "norm") +
   scale_color_manual(values = SBI_colours) +
   scale_fill_manual(values = SBI_colours) +
   labs(
@@ -214,6 +214,10 @@ ggplot(pcoa_df, aes(x = PC1, y = PC2, color = SBI)) +
     legend.title = element_text(size = 12),
     legend.text = element_text(size = 10)
   )
+
+P_3_vir
+
+ggsave("~/STEC_139/Objective_2_virulome_analysis/Figures/P_3_vir.svg", plot = P_3_vir, width = 7, height = 5)
 
 ### Stx_gene ###
 set.seed(123)
