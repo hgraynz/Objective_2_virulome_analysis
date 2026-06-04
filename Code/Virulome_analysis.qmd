@@ -92,6 +92,12 @@ So, is there any other factors that is influencing this? Farm? Calf?
 Do I want to do any nested models?
 
 ```{r PCoA_plots}
+pcoa_df$Farm_id <- factor(
+  pcoa_df$Farm_id,
+  levels = c(19, 25, 30, 84, 130),
+  labels = c("19", "25", "30", "84", "130")
+)
+
 # PCoA
 pcoa_vir <- cmdscale(dist_matrix_virulence, k = 2, eig = TRUE)
 
@@ -124,36 +130,82 @@ ggplot(pcoa_df, aes(x = PC1, y = PC2, color = as.factor(Farm_id))) +
   )
 
 
-# Plot_farm
-ggplot(pcoa_df, aes(x = PC1, y = PC2, color = as.factor(Farm_id))) +
-  geom_jitter(width = 0.001, height = 0.001, size = 3, alpha = 0.8) +
-  stat_ellipse(aes(fill = Farm_id), geom = "polygon", alpha = 0.2) +
+### Plot_farm ###
+
+Farm_id_colours <- c(
+  "19"     = "#423795",
+  "25" = "#D2A5FF",
+  "30"  = "#87CEFA",
+  "84" = "#95D9BE",
+  "130" = "#FF194F"
+)
+
+# Convert and replace the column in your data frame
+metadata$Farm_id <- factor(metadata$Farm_id)
+
+# Optional: Convert and add custom text labels
+metadata$Farm_id <- factor(metadata$Farm_id, levels = c(19, 25, 30, 84, 130), labels = c("19", "25", "30", "84", "130"))
+
+
+P_1_vir<-ggplot(pcoa_df, aes(x = PC1, y = PC2, color = Farm_id)) +
+  geom_jitter(width = 0.005, height = 0.005, size = 3, alpha = 0.8) +
+  #stat_ellipse(aes(fill = Farm_id), geom = "polygon", alpha = 0.2, type = "euclid") +
+  scale_color_manual(values = Farm_id_colours) +
+  scale_fill_manual(values = Farm_id_colours) +
   theme_minimal() +
   labs(
-    title = "Virulome PCoA",
     x = paste0("PC1 (", pc1_var, "%)"),
     y = paste0("PC2 (", pc2_var, "%)")
   )
 
-ggplot(pcoa_df, aes(x = PC1, y = PC2, color = Sample_site)) +
+P_1_vir
+
+ggsave("~/STEC_139/Objective_2_virulome_analysis/Figures/P_1_vir.svg", plot = P_1_vir, width = 7, height = 5)
+
+### Sample_site ###
+
+Sample_site_colours <- c(
+  "Farm"     = "#88ccee",
+  "Lairage" = "#44aa99",
+  "Hide"  = "#DDCC77",
+  "Pre_intervention" = "#cc6677",
+  "Post_intervention" = "#332288"
+)
+
+P_2_vir<-ggplot(pcoa_df, aes(x = PC1, y = PC2, color = Sample_site)) +
   geom_jitter(width = 0.01, height = 0.01, size = 3, alpha = 0.8) +
-  stat_ellipse(aes(fill = Sample_site), alpha = 0.2, geom = "polygon", color = NA) +
+  stat_ellipse(aes(fill = Sample_site), geom = "polygon", alpha = 0.2, type = "norm") +
+  scale_color_manual(values = Sample_site_colours) +
+  scale_fill_manual(values = Sample_site_colours) +
   labs(
-    title = "PCoA of Virulence Genes",
-    x = paste0("PC1 (", round(var_explained[1]*100,1), "%)"),
-    y = paste0("PC2 (", round(var_explained[2]*100,1), "%)")
+    x = paste0("Axis.1 [", round(var_explained[1]*100,1), "%]"),
+    y = paste0("Axis.2 [", round(var_explained[2]*100,1), "%]")
   ) +
   theme_minimal() +
   theme(
     legend.title = element_text(size = 12),
     legend.text = element_text(size = 10)
   )
+P_2_vir
+
+ggsave("~/STEC_139/Objective_2_virulome_analysis/Figures/P_2_vir.svg", plot = P_2_vir, width = 7, height = 5)
+
+### SBI ###
+
+SBI_colours <- c(
+  "AWY2a"     = "#2CA02C",
+  "AY2a" = "#1F77B4",
+  "WY12a" = "#AEC7E8",
+  "ASY2c" = "#FF7F0E",
+  "SY2c"  = "#FFBB78"
+)
 
 ggplot(pcoa_df, aes(x = PC1, y = PC2, color = SBI)) +
   geom_jitter(width = 0.01, height = 0.01, size = 3, alpha = 0.8) +
-  stat_ellipse(aes(fill = SBI), alpha = 0.2, geom = "polygon", color = NA) +
+  stat_ellipse(aes(fill = SBI), geom = "polygon", alpha = 0.2, type = "norm") +
+  scale_color_manual(values = SBI_colours) +
+  scale_fill_manual(values = SBI_colours) +
   labs(
-    title = "PCoA of Virulence Genes",
     x = paste0("PC1 (", round(var_explained[1]*100,1), "%)"),
     y = paste0("PC2 (", round(var_explained[2]*100,1), "%)")
   ) +
@@ -163,11 +215,22 @@ ggplot(pcoa_df, aes(x = PC1, y = PC2, color = SBI)) +
     legend.text = element_text(size = 10)
   )
 
-ggplot(pcoa_df, aes(x = PC1, y = PC2, color = Stx_gene)) +
+### Stx_gene ###
+set.seed(123)
+
+Stx_colours <- c(
+  "Partial" = "#FF0800",
+  "Stx2c" = "#6610F2",
+  "Stx1a_and_2a" = "#410200",
+  "Stx2a"  = "#F17105"
+)
+
+P_4_vir<-ggplot(pcoa_df, aes(x = PC1, y = PC2, color = Stx_gene)) +
   geom_jitter(width = 0.01, height = 0.01, size = 3, alpha = 0.8) +
-  stat_ellipse(aes(fill = Stx_gene), alpha = 0.2, geom = "polygon", color = NA) +
+  stat_ellipse(aes(fill = Stx_gene), geom = "polygon", alpha = 0.2, type = "norm") +
+  scale_color_manual(values = Stx_colours) +
+  scale_fill_manual(values = Stx_colours) +
   labs(
-    title = "PCoA of Virulence Genes",
     x = paste0("PC1 (", round(var_explained[1]*100,1), "%)"),
     y = paste0("PC2 (", round(var_explained[2]*100,1), "%)")
   ) +
@@ -177,7 +240,13 @@ ggplot(pcoa_df, aes(x = PC1, y = PC2, color = Stx_gene)) +
     legend.text = element_text(size = 10)
   )
 
+P_4_vir
 
+ggsave("~/STEC_139/Objective_2_virulome_analysis/Figures/P_4_vir.svg", plot = P_4_vir, width = 7, height = 5)
+
+######################### 
+### Alternative plots ###
+######################### 
 
 # Add small jitter to avoid overplotting
 pcoa_df_jitter <- pcoa_df %>%
