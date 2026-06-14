@@ -92,6 +92,8 @@ So, is there any other factors that is influencing this? Farm? Calf?
 Do I want to do any nested models?
 
 ```{r PCoA_plots}
+set.seed(1234)
+
 pcoa_df$Farm_id <- factor(
   pcoa_df$Farm_id,
   levels = c(19, 25, 30, 84, 130),
