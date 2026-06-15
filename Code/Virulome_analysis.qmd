@@ -150,7 +150,7 @@ metadata$Farm_id <- factor(metadata$Farm_id, levels = c(19, 25, 30, 84, 130), la
 
 
 P_1_vir<-ggplot(pcoa_df, aes(x = PC1, y = PC2, color = Farm_id)) +
-  geom_jitter(width = 0.001, height = 0.001, size = 3, alpha = 0.8) +
+  geom_jitter(width = 0.004, height = 0.004, size = 3, alpha = 0.8) +
   #stat_ellipse(aes(fill = Farm_id), geom = "polygon", alpha = 0.2, type = "norm") +
   scale_color_manual(values = Farm_id_colours) +
   scale_fill_manual(values = Farm_id_colours) +
