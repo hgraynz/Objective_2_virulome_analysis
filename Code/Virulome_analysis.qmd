@@ -94,12 +94,6 @@ Do I want to do any nested models?
 ```{r PCoA_plots}
 set.seed(1234)
 
-pcoa_df$Farm_id <- factor(
-  pcoa_df$Farm_id,
-  levels = c(19, 25, 30, 84, 130),
-  labels = c("19", "25", "30", "84", "130")
-)
-
 # PCoA
 pcoa_vir <- cmdscale(dist_matrix_virulence, k = 2, eig = TRUE)
 
@@ -114,14 +108,29 @@ pcoa_df <- data.frame(
 pcoa_df <- pcoa_df %>%
   left_join(metadata, by = "Isolate_ID")
 
+# Fix: make Farm_id a proper factor on the MERGED df, matching your colour keys
+pcoa_df$Farm_id <- factor(
+  pcoa_df$Farm_id,
+  levels = c(19, 25, 30, 84, 130),
+  labels = c("19", "25", "30", "84", "130")
+)
+
 # Percentage of variance explained
 eig_vals <- pcoa_vir$eig
 var_explained <- eig_vals / sum(eig_vals)
 pc1_var <- round(var_explained[1] * 100, 1)
 pc2_var <- round(var_explained[2] * 100, 1)
 
+# Adding standardised jitter (fixed, computed once)
+set.seed(1234)
+jitter_amount_x <- 0.02 * diff(range(pcoa_df$PC1))
+jitter_amount_y <- 0.02 * diff(range(pcoa_df$PC2))
 
-ggplot(pcoa_df, aes(x = PC1, y = PC2, color = as.factor(Farm_id))) +
+pcoa_df$PC1_jit <- pcoa_df$PC1 + runif(nrow(pcoa_df), -jitter_amount_x, jitter_amount_x)
+pcoa_df$PC2_jit <- pcoa_df$PC2 + runif(nrow(pcoa_df), -jitter_amount_y, jitter_amount_y)
+
+# Quick check plot
+ggplot(pcoa_df, aes(x = PC1_jit, y = PC2_jit, color = Farm_id)) +
   geom_point(size = 4) +
   xlab(paste0("PC1 (", pc1_var, "%)")) +
   ylab(paste0("PC2 (", pc2_var, "%)")) +
@@ -131,41 +140,29 @@ ggplot(pcoa_df, aes(x = PC1, y = PC2, color = as.factor(Farm_id))) +
     legend.position = "right"
   )
 
-
 ### Plot_farm ###
-set.seed(1112)
 Farm_id_colours <- c(
-  "19"     = "#423795",
-  "25" = "#D2A5FF",
+  "19"  = "#423795",
+  "25"  = "#D2A5FF",
   "30"  = "#87CEFA",
-  "84" = "#95D9BE",
+  "84"  = "#95D9BE",
   "130" = "#FF194F"
 )
 
-# Convert and replace the column in your data frame
-metadata$Farm_id <- factor(metadata$Farm_id)
-
-# Optional: Convert and add custom text labels
-metadata$Farm_id <- factor(metadata$Farm_id, levels = c(19, 25, 30, 84, 130), labels = c("19", "25", "30", "84", "130"))
-
-
-P_1_vir<-ggplot(pcoa_df, aes(x = PC1, y = PC2, color = Farm_id)) +
-  geom_jitter(width = 0.004, height = 0.004, size = 3, alpha = 0.8) +
+P_1_vir <- ggplot(pcoa_df, aes(x = PC1_jit, y = PC2_jit, color = Farm_id)) +
+  geom_point(size = 3, alpha = 0.8) +
   #stat_ellipse(aes(fill = Farm_id), geom = "polygon", alpha = 0.2, type = "norm") +
   scale_color_manual(values = Farm_id_colours) +
   scale_fill_manual(values = Farm_id_colours) +
   theme_minimal() +
   labs(
     x = paste0("Axis.1 [", pc1_var, "%]"),
-    y = paste0("Axis.2 [", pc1_var, "%]")
+    y = paste0("Axis.2 [", pc2_var, "%]")
   )
-
 P_1_vir
-
 ggsave("~/STEC_139/Objective_2_virulome_analysis/Figures/P_1_vir.svg", plot = P_1_vir, width = 7, height = 5)
 
 ### Sample_site ###
-set.seed(789)
 Sample_site_colours <- c(
   "Farm"     = "#88ccee",
   "Lairage" = "#44aa99",
@@ -173,9 +170,8 @@ Sample_site_colours <- c(
   "Pre_intervention" = "#cc6677",
   "Post_intervention" = "#332288"
 )
-
-P_2_vir<-ggplot(pcoa_df, aes(x = PC1, y = PC2, color = Sample_site)) +
-  geom_jitter(width = 0.01, height = 0.01, size = 3, alpha = 0.8) +
+P_2_vir <- ggplot(pcoa_df, aes(x = PC1_jit, y = PC2_jit, color = Sample_site)) +
+  geom_point(size = 3, alpha = 0.8) +
   stat_ellipse(aes(fill = Sample_site), geom = "polygon", alpha = 0.2, type = "norm") +
   scale_color_manual(values = Sample_site_colours) +
   scale_fill_manual(values = Sample_site_colours) +
@@ -189,11 +185,9 @@ P_2_vir<-ggplot(pcoa_df, aes(x = PC1, y = PC2, color = Sample_site)) +
     legend.text = element_text(size = 10)
   )
 P_2_vir
-
 ggsave("~/STEC_139/Objective_2_virulome_analysis/Figures/P_2_vir.svg", plot = P_2_vir, width = 7, height = 5)
 
 ### SBI ###
-set.seed(456)
 SBI_colours <- c(
   "AWY2a"     = "#2CA02C",
   "AY2a" = "#1F77B4",
@@ -201,55 +195,46 @@ SBI_colours <- c(
   "ASY2c" = "#FF7F0E",
   "SY2c"  = "#FFBB78"
 )
-
-P_3_vir<-ggplot(pcoa_df, aes(x = PC1, y = PC2, color = SBI)) +
-  geom_jitter(width = 0.01, height = 0.01, size = 3, alpha = 0.8) +
+P_3_vir <- ggplot(pcoa_df, aes(x = PC1_jit, y = PC2_jit, color = SBI)) +
+  geom_point(size = 3, alpha = 0.8) +
   #stat_ellipse(aes(fill = SBI), geom = "polygon", alpha = 0.2, type = "norm") +
   scale_color_manual(values = SBI_colours) +
   scale_fill_manual(values = SBI_colours) +
   labs(
     x = paste0("Axis.1 [", pc1_var, "%]"),
-    y = paste0("Axis.2 [", pc1_var, "%]")
+    y = paste0("Axis.2 [", pc2_var, "%]")
   ) +
   theme_minimal() +
   theme(
     legend.title = element_text(size = 12),
     legend.text = element_text(size = 10)
   )
-
 P_3_vir
-
 ggsave("~/STEC_139/Objective_2_virulome_analysis/Figures/P_3_vir.svg", plot = P_3_vir, width = 7, height = 5)
 
 ### Stx_gene ###
-set.seed(123)
-
 Stx_colours <- c(
   "Partial" = "#FF0800",
   "Stx2c" = "#6610F2",
   "Stx1a_and_2a" = "#410200",
   "Stx2a"  = "#F17105"
 )
-
-P_4_vir<-ggplot(pcoa_df, aes(x = PC1, y = PC2, color = Stx_gene)) +
-  geom_jitter(width = 0.01, height = 0.01, size = 3, alpha = 0.8) +
+P_4_vir <- ggplot(pcoa_df, aes(x = PC1_jit, y = PC2_jit, color = Stx_gene)) +
+  geom_point(size = 3, alpha = 0.8) +
   stat_ellipse(aes(fill = Stx_gene), geom = "polygon", alpha = 0.2, type = "norm") +
   scale_color_manual(values = Stx_colours) +
   scale_fill_manual(values = Stx_colours) +
   labs(
     x = paste0("Axis.1 [", pc1_var, "%]"),
-    y = paste0("Axis.2 [", pc1_var, "%]")
+    y = paste0("Axis.2 [", pc2_var, "%]")
   ) +
   theme_minimal() +
   theme(
     legend.title = element_text(size = 12),
     legend.text = element_text(size = 10)
   )
-
 P_4_vir
-
 ggsave("~/STEC_139/Objective_2_virulome_analysis/Figures/P_4_vir.svg", plot = P_4_vir, width = 7, height = 5)
-
 ######################### 
 ### Alternative plots ###
 ######################### 
