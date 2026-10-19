@@ -24,6 +24,7 @@ library(glue)
 library(randomForest)
 library(car)
 library(performance)
+library(permute)
 ```
 
 Loading in the gene matrix (for later), metadata and virulence genes. Lets start with looking at the metadata and how it relates to the virulence genes.
@@ -66,8 +67,27 @@ perm_vir_margin <- adonis2(dist_matrix_virulence ~ Sample_site , data = metadata
 
 perm_vir_margin
 
+
 permanova_table <- as.data.frame(perm_vir_margin)
 write.csv(permanova_table, file = "~/STEC_139/Objective_2_virulome_analysis/Tables/permanova_results_virulence.csv", row.names = TRUE)
+
+#permanova accounting for farm and within farm variation
+metadata$FarmID <- as.factor(metadata$Farm_id)
+levels(metadata$FarmID)
+nlevels(metadata$FarmID)   # should return 5
+table(metadata$FarmID)     # sample size per farm — worth reporting anyway
+perm_design <- how(within = Within(type = "free"),
+                    blocks = metadata$FarmID,
+                    nperm = 999)
+
+perm_vir_farm <- adonis2(dist_matrix_virulence ~ FarmID + Sample_site,
+                          data = metadata,
+                          permutations = perm_design,
+                          by = "margin")
+perm_vir_farm
+
+table(metadata$FarmID, metadata$Sample_site)
+
 ```
 |             | Df  | SumOfSqs | R2       | F        | Pr(>F)   |
 |-------------|-----|----------|----------|----------|----------|
